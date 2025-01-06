@@ -10,7 +10,9 @@
 #include <vector>
 
 #include <librealsense2/rs.hpp>
-#include <opencv2/opencv.hpp>
+#include "opencv2/aruco.hpp"
+#include "opencv2/core.hpp"
+#include "opencv2/opencv.hpp"
 
 
 namespace realsense_reader
@@ -24,6 +26,8 @@ public:
 
 private:
   void initialize_stream();
+  bool estimate_depth(const cv::Mat & depth_image, cv::Mat & color_image);
+
   std::string serial_number_;
 
   rs2::frameset frame_set_;
@@ -43,6 +47,7 @@ private:
   cv::Size2i image_size_ = cv::Size2i(640, 360);
   uint8_t fps_ = 30;
   cv::Mat color_intrinsics_matrix_;
+  cv::Mat distortion_matrix_;
 };
 }  // namespace realsense_reader
 #endif  // REALSENSE_READER__IMAGE_HANDLER_HPP_
