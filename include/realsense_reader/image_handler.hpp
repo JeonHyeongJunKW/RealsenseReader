@@ -1,3 +1,5 @@
+// Copyright 2025 Hyeongjun Jeon
+
 #ifndef REALSENSE_READER__IMAGE_HANDLER_HPP_
 #define REALSENSE_READER__IMAGE_HANDLER_HPP_
 
@@ -18,10 +20,9 @@ class ImageHandler
 public:
   explicit ImageHandler(const int target_camera_index = 0);
   virtual ~ImageHandler() {}
-  void start();
+  void run();
 
 private:
-  cudaStream_t stream_;
   void initialize_stream();
   std::string serial_number_;
 

@@ -1,12 +1,26 @@
+// Copyright 2025 Hyeongjun Jeon
+
 #include "realsense_reader/image_handler.hpp"
 
 
-realsense_reader::ImageHandler::ImageHandler(const int target_camera_index = 0)
+realsense_reader::ImageHandler::ImageHandler(const int target_camera_index)
 {
   rs2::context context;
-  auto device = context.query_devices()[0];
-  serial_number_ = device.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
-  for (auto & sensor : device.query_sensors()) {
+  rs2::device_list device_list = context.query_devices();
+  if (device_list.size() == 0) {
+    throw std::runtime_error("No device detected. Is it plugged in?");
+  }
+
+  if (device_list.size() <= target_camera_index) {
+    const std::string error_log =
+      "Invalid target camera index (device count: " +
+      std::to_string(device_list.size()) +
+      ")";
+    throw std::runtime_error(error_log);
+  }
+  auto target_device = device_list[target_camera_index];
+  serial_number_ = target_device.get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
+  for (auto & sensor : target_device.query_sensors()) {
     const std::string sensor_name = sensor.get_info(RS2_CAMERA_INFO_NAME);
     if (sensor_name == "Stereo Module") {
       sensor.set_option(RS2_OPTION_LASER_POWER, 360.0);
@@ -51,9 +65,6 @@ void realsense_reader::ImageHandler::initialize_stream()
   rs2::pipeline_profile pipeline_profile = pipeline_->start(config_);
 
   auto color_stream = pipeline_profile.get_stream(RS2_STREAM_COLOR);
-
-  rs2_extrinsics infrared_extrinsic_info = left_infrared_stream.get_extrinsics_to(color_stream);
-
   auto color_intrinsics = color_stream.as<rs2::video_stream_profile>().get_intrinsics();
 
   color_intrinsics_matrix_ = cv::Mat::eye(3, 3, CV_32F);
@@ -64,19 +75,17 @@ void realsense_reader::ImageHandler::initialize_stream()
   color_intrinsics_matrix_.at<double>(2, 2) = 1.0f;
 
   pipeline_->stop();
-
-  cudaStreamCreate(&stream_);
-  cudaStreamSynchronize(stream_);
 }
 
 void realsense_reader::ImageHandler::run()
 {
   pipeline_->start(config_);
+  std::cout << "Started to capture images" << std::endl;
+  std::cout << "Press ESC key to stop" << std::endl;
 
   while (cv::waitKey(1) != 27) {
     frame_set_ = pipeline_->wait_for_frames();
-
-    frame_set_ = align_to_color_->process(frame_set_); // align only for depth
+    frame_set_ = align_to_color_->process(frame_set_);  // align only for depth
 
     color_frame_ = frame_set_.get_color_frame();
     depth_frame_ = frame_set_.get_depth_frame();
@@ -85,13 +94,13 @@ void realsense_reader::ImageHandler::run()
       image_size_.height,
       image_size_.width,
       CV_8UC3,
-    const_cast<void *>(color_frame_.get_data()));
+      const_cast<void *>(color_frame_.get_data()));
 
     depth_image_ = cv::Mat(
       image_size_.height,
       image_size_.width,
       CV_16UC1,
-    const_cast<void *>(depth_frame_.get_data()));
+      const_cast<void *>(depth_frame_.get_data()));
 
     cv::Mat output_confidence;
     depth_image_.convertTo(depth_image_, CV_32FC1, 0.001);
@@ -107,4 +116,5 @@ void realsense_reader::ImageHandler::run()
     cv::imshow("Color Image", color_image_);
   }
   pipeline_->stop();
+  std::cout << "Ended to capture images" << std::endl;
 }
