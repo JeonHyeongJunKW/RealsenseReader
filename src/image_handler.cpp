@@ -102,7 +102,6 @@ void realsense_reader::ImageHandler::run()
       CV_16UC1,
       const_cast<void *>(depth_frame_.get_data()));
 
-    cv::Mat output_confidence;
     depth_image_.convertTo(depth_image_, CV_32FC1, 0.001);
 
     cv::threshold(depth_image_, depth_image_, 10.0f, 0.0f, cv::THRESH_TRUNC);
