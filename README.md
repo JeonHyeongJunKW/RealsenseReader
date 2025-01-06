@@ -16,5 +16,6 @@ make
 
 ### 실행방법
 ```
-./RealsenseReader
+./RealsenseReader {타겟 카메라 인덱스}
+# e.g ./RealsenseReader 0
 ```
