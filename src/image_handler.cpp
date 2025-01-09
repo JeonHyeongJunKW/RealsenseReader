@@ -59,6 +59,9 @@ realsense_reader::ImageHandler::ImageHandler(const int target_camera_index)
   align_to_color_ = std::make_shared<rs2::align>(RS2_STREAM_COLOR);
   pipeline_ = std::make_shared<rs2::pipeline>();
   this->initialize_stream();
+
+  // initialize_aruco_marker_model();
+  unit_test_ = std::make_unique<UnitTest>();
 }
 
 void realsense_reader::ImageHandler::initialize_stream()
@@ -78,7 +81,7 @@ void realsense_reader::ImageHandler::initialize_stream()
   std::vector<float> distortion_coeffs(color_intrinsics.coeffs, color_intrinsics.coeffs + 5);
   distortion_matrix_ = cv::Mat(1, 5, CV_32F, distortion_coeffs.data()).clone();
 
-  std::cout << "Intrensic matrix: " << color_intrinsics_matrix_ << std::endl;
+  std::cout << "Intrinsic matrix: " << color_intrinsics_matrix_ << std::endl;
   std::cout << "Distortion matrix: " << distortion_matrix_ << std::endl;
 
   pipeline_->stop();
@@ -111,7 +114,8 @@ void realsense_reader::ImageHandler::run()
 
     depth_image_.convertTo(depth_image_, CV_32FC1, 0.001);
 
-    estimate_depth(depth_image_, color_image_);
+    unit_test_->run(depth_image_, color_image_);
+    // estimate_depth(depth_image_, color_image_);
 
     cv::threshold(depth_image_, depth_image_, 10.0f, 0.0f, cv::THRESH_TRUNC);
     depth_image_ = depth_image_ * 25.5f;
@@ -147,55 +151,48 @@ bool realsense_reader::ImageHandler::estimate_depth(
     return false;
   }
 
-  float markerLength = 0.199;
-  std::vector<cv::Point3f> object_points = {
-    cv::Point3f(0, 0, 0),
-    cv::Point3f(markerLength, 0, 0),
-    cv::Point3f(markerLength, markerLength, 0),
-    cv::Point3f(0, markerLength, 0)};
-
-  cv::Mat world_to_points(4, 4, CV_64F);
-
-  for (size_t i = 0; i < object_points.size(); ++i) {
-    world_to_points.at<double>(0, i) = object_points[i].x;
-    world_to_points.at<double>(1, i) = object_points[i].y;
-    world_to_points.at<double>(2, i) = object_points[i].z;
-    world_to_points.at<double>(3, i) = 1.0;
-  }
-
+  std::vector<cv::Point3f> object_points;
+  std::vector<cv::Point2f> aruco_corners;
   for (size_t i = 0; i < marker_ids.size(); ++i) {
-    cv::Vec3d rotation, translation;
-    cv::solvePnP(object_points, marker_corners[i], color_intrinsics_matrix_, distortion_matrix_, rotation, translation);
+    int marker_id = marker_ids[i];
+    std::vector<cv::Point3f> aruco_object_points = aruco_object_points_[marker_id];
+    std::vector<cv::Point2f> corners = marker_corners[i];
 
-    cv::Mat rotation_matrix;
-    cv::Rodrigues(rotation, rotation_matrix);
+    object_points.insert(object_points.end(), aruco_object_points.begin(), aruco_object_points.end());
+    aruco_corners.insert(aruco_corners.end(), corners.begin(), corners.end());
 
-    cv::Mat projection_matrix, camera_to_world;
-    cv::hconcat(rotation_matrix, translation, projection_matrix);
-    cv::vconcat(projection_matrix, cv::Mat(cv::Vec4d(0, 0, 0, 1)).t(), camera_to_world);
+    // cv::Mat projection_matrix, camera_to_world;
+    // cv::hconcat(rotation_matrix, translation, projection_matrix);
+    // cv::vconcat(projection_matrix, cv::Mat(cv::Vec4d(0, 0, 0, 1)).t(), camera_to_world);
 
     std::cout << "Marker ID: " << marker_ids[i] << std::endl;
-    std::cout << "Rotation Vector: " << rotation << std::endl;
-    std::cout << "Translation Vector: " << translation << std::endl;
-    std::cout << "Camera Position (World Coordinates): " << std::endl;
-    std::cout << camera_to_world.inv() << std::endl;
+    // std::cout << "Rotation Vector: " << rotation << std::endl;
+    // std::cout << "Translation Vector: " << translation << std::endl;
+    // std::cout << "Camera Position (World Coordinates): " << std::endl;
+    // std::cout << camera_to_world.inv() << std::endl;
 
-    cv::Mat camera_to_points = camera_to_world * world_to_points;
-    std::vector<float> aruco_depth = {
-      static_cast<float>(camera_to_points.at<double>(2, 0)),
-      static_cast<float>(camera_to_points.at<double>(2, 1)),
-      static_cast<float>(camera_to_points.at<double>(2, 2)),
-      static_cast<float>(camera_to_points.at<double>(2, 3))};
-    std::vector<float> rs_depth = {
-      depth_image_.at<float>(static_cast<int>(marker_corners[i][0].y), static_cast<int>(marker_corners[i][0].x)),
-      depth_image_.at<float>(static_cast<int>(marker_corners[i][1].y), static_cast<int>(marker_corners[i][1].x)),
-      depth_image_.at<float>(static_cast<int>(marker_corners[i][2].y), static_cast<int>(marker_corners[i][2].x)),
-      depth_image_.at<float>(static_cast<int>(marker_corners[i][3].y), static_cast<int>(marker_corners[i][3].x))};
+    // cv::Mat camera_to_points = camera_to_world * world_to_points;
+    // std::vector<float> aruco_depth = {
+    //   static_cast<float>(camera_to_points.at<double>(2, 0)),
+    //   static_cast<float>(camera_to_points.at<double>(2, 1)),
+    //   static_cast<float>(camera_to_points.at<double>(2, 2)),
+    //   static_cast<float>(camera_to_points.at<double>(2, 3))};
+    // std::vector<float> rs_depth = {
+    //   depth_image_.at<float>(static_cast<int>(marker_corners[i][0].y), static_cast<int>(marker_corners[i][0].x)),
+    //   depth_image_.at<float>(static_cast<int>(marker_corners[i][1].y), static_cast<int>(marker_corners[i][1].x)),
+    //   depth_image_.at<float>(static_cast<int>(marker_corners[i][2].y), static_cast<int>(marker_corners[i][2].x)),
+    //   depth_image_.at<float>(static_cast<int>(marker_corners[i][3].y), static_cast<int>(marker_corners[i][3].x))};
 
-    for (size_t i = 0; i < aruco_depth.size(); i++)  {
-      std::cout << "Aruco Depth : " << aruco_depth[i] << " / rs dpeth : " << rs_depth[i] << " / diff : " << std::fabs(aruco_depth[i] - rs_depth[i]) << std::endl;
-    }
+    // for (size_t i = 0; i < aruco_depth.size(); i++)  {
+    //   std::cout << "Aruco Depth : " << aruco_depth[i] << " / rs dpeth : " << rs_depth[i] << " / diff : " << std::fabs(aruco_depth[i] - rs_depth[i]) << std::endl;
+    // }
   }
+
+  cv::Vec3d rotation, translation;
+  cv::solvePnP(object_points, aruco_corners, color_intrinsics_matrix_, distortion_matrix_, rotation, translation);
+
+  cv::Mat rotation_matrix;
+  cv::Rodrigues(rotation, rotation_matrix);
 
   return true;
 }

@@ -37,7 +37,8 @@ include_directories(
 add_executable(
   ${PROJECT_NAME}
   ${PROJECT_SOURCE_DIR}/src/main.cpp
-  ${PROJECT_SOURCE_DIR}/src/image_handler.cpp)
+  ${PROJECT_SOURCE_DIR}/src/image_handler.cpp
+  ${PROJECT_SOURCE_DIR}/src/unit_test.cpp)
 
 target_link_libraries(
   ${PROJECT_NAME}
